@@ -1,18 +1,18 @@
 import express from 'express'
 import cors from 'cors'
 import 'dotenv/config'
-import connectDB from './config/db.js'
+import mongoose from 'mongoose'
+import connectDB, { requireDatabase } from './config/db.js'
 import userRouter from './routes/userRoutes.js'
 import chatRouter from './routes/chatRoute.js'
 import messageRouter from './routes/messageRoute.js'
 import creditsRouter from './routes/creditsRoute.js'
-import { stripeWebhook } from './controllers/webhooks.js'
+import { safepayWebhook } from './controllers/webhooks.js'
 
 const app = express()
 
 await connectDB()
-// Stripe WebHooks
-app.post('/api/stripe', express.raw({ type: 'application/json' }), stripeWebhook)
+app.post('/api/safepay/webhook', express.raw({ type: 'application/json' }), safepayWebhook)
 
 // Middlewares
 app.use(cors())
@@ -20,10 +20,13 @@ app.use(express.json())
 
 // Routes
 app.get('/', (req, res) => res.send('server is Live'))
-app.use('/api/user', userRouter)
-app.use('/api/chat', chatRouter)
-app.use('/api/message', messageRouter)
-app.use('/api/credit', creditsRouter)
+app.get('/api/health', (req, res) => {
+    res.json({ success: true, database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' })
+})
+app.use('/api/user', requireDatabase, userRouter)
+app.use('/api/chat', requireDatabase, chatRouter)
+app.use('/api/message', requireDatabase, messageRouter)
+app.use('/api/credit', requireDatabase, creditsRouter)
 
 const PORT = process.env.PORT || 3000
 

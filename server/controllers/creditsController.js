@@ -1,5 +1,5 @@
 import Transaction from "../modals/Transaction.js"
-import Stripe from "stripe"
+import Safepay from "@sfpy/node-core"
 
 const plans = [
     {
@@ -37,8 +37,6 @@ export const getPlans = async (req, res) => {
 
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-
 // API Controller for purchasing a new plan
 export const purchasePlan = async (req, res) => {
     try {
@@ -47,10 +45,33 @@ export const purchasePlan = async (req, res) => {
         const plan = plans.find(plan => plan._id === planId)
 
         if (!plan) {
-            return res.json({ success: false, message: "Invalid Plan" })
+            return res.status(400).json({ success: false, message: "Invalid Plan" })
         }
 
-        // Create a New Transaction 
+        const environment = process.env.SAFEPAY_ENV?.trim() || 'sandbox'
+        if (!['sandbox', 'production'].includes(environment)) {
+            return res.status(500).json({ success: false, message: 'SAFEPAY_ENV must be sandbox or production.' })
+        }
+
+        const secretKey = process.env.SAFEPAY_SECRET_KEY?.trim()
+        const apiKey = process.env.SAFEPAY_API_KEY?.trim()
+        const clientUrl = process.env.CLIENT_URL?.trim()
+        if (!secretKey || !apiKey || !clientUrl) {
+            return res.status(503).json({
+                success: false,
+                message: 'Safepay is not configured. Set SAFEPAY_SECRET_KEY, SAFEPAY_API_KEY, and CLIENT_URL in the server environment.',
+            })
+        }
+
+        const host = environment === 'production'
+            ? 'https://api.getsafepay.com'
+            : 'https://sandbox.api.getsafepay.com'
+        const safepay = new Safepay(secretKey, { authType: 'secret', host })
+        const checkoutOrigin = new URL(clientUrl)
+        if (environment === 'production' && checkoutOrigin.protocol !== 'https:') {
+            return res.status(500).json({ success: false, message: 'CLIENT_URL must use HTTPS for production payments.' })
+        }
+
         const transaction = await Transaction.create({
             userId: userId,
             planId: plan._id,
@@ -59,36 +80,64 @@ export const purchasePlan = async (req, res) => {
             isPaid: false
         })
 
-        const { origin } = req.headers;
-
-        const session = await stripe.checkout.sessions.create({
-            line_items: [
-                {
-                    price_data: {
-                        currency: "usd",
-                        unit_amount: plan.price * 100,
-                        product_data: {
-                            name: plan.name
-                        }
-                    },
-                    quantity: 1,
-                },
-            ],
-            mode: "payment",
-            success_url: `${origin}/loading`,
-            cancel_url: `${origin}`,
-            metadata: {
-                transactionId: transaction._id.toString(), appId: 'quickgpt'
-            },
-            expires_at: Math.floor(Date.now() / 1000) + 30 * 60, // session Expires in 30 min
+        const sessionResponse = await safepay.payments.session.setup({
+            merchant_api_key: apiKey,
+            intent: 'CYBERSOURCE',
+            mode: 'payment',
+            entry_mode: 'raw',
+            currency: 'USD',
+            amount: Math.round(plan.price * 100),
+            metadata: { order_id: transaction._id.toString() },
+            include_fees: false,
         })
 
-        res.json({ success: true, url: session.url })
+        const tracker = sessionResponse.data?.tracker?.token
+        if (!tracker) {
+            throw new Error('Safepay did not return a payment tracker.')
+        }
+
+        const passportResponse = await safepay.client.passport.create()
+        const passportToken = passportResponse.data
+        if (typeof passportToken !== 'string' || !passportToken) {
+            throw new Error('Safepay did not return a checkout token.')
+        }
+
+        transaction.safepayTracker = tracker
+        await transaction.save()
+
+        const url = safepay.checkout.createCheckoutUrl({
+            env: environment,
+            tbt: passportToken,
+            tracker,
+            source: 'hosted',
+            redirect_url: new URL('/loading', checkoutOrigin).toString(),
+            cancel_url: new URL('/credits?payment=cancelled', checkoutOrigin).toString(),
+        })
+
+        return res.json({ success: true, url })
     } catch (err) {
-        res.json({ success: false, message: err.message })
+        console.error('Safepay checkout setup failed:', err.message)
+        return res.status(502).json({ success: false, message: err.message })
     }
 
 }
 
+export const getPaymentStatus = async (req, res) => {
+    try {
+        const transaction = await Transaction.findOne({
+            safepayTracker: req.params.tracker,
+            userId: req.user._id,
+        }).select('isPaid')
+
+        if (!transaction) {
+            return res.status(404).json({ success: false, message: 'Payment was not found.' })
+        }
+
+        return res.json({ success: true, paid: transaction.isPaid })
+    } catch (err) {
+        console.error('Payment status lookup failed:', err.message)
+        return res.status(500).json({ success: false, message: 'Could not check payment status.' })
+    }
+}
 
 

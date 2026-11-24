@@ -12,16 +12,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@sfpy/node-core": "^0.3.7",
     "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "google-auth-library": "^11.3.4",
     "imagekit": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.1",
-    "openai": "^5.20.0",
-    "stripe": "^18.5.0",
     "svix": "^1.76.1"
   },
   "devDependencies": {

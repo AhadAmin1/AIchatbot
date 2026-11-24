@@ -5,13 +5,17 @@ export const protect = async (req, res, next) => {
     let token = req.headers.authorization;
 
     try {
+        if (!token) {
+            return res.status(401).json({ success: false, message: "Please sign in with Google" })
+        }
+
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.id;
 
         const user = await User.findById(userId)
 
-        if (!user) {
-            return res.json({ success: false, message: "not authorized, User Not Found" })
+        if (!user || !user.googleId) {
+            return res.status(401).json({ success: false, message: "Please sign in with Google" })
         }
 
         req.user = user;

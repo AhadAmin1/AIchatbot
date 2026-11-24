@@ -1,63 +1,149 @@
-import React, { useState } from 'react'
-import { useAppcontext } from '../context/AppContext';
-import toast from 'react-hot-toast';
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAppcontext } from '../context/AppContext'
+import toast from 'react-hot-toast'
 
 const Login = () => {
-  const [state, setState] = useState("login");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const buttonContainerRef = useRef(null)
   const { axios, setToken } = useAppcontext()
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const url = state === "login" ? "/api/user/login" : "/api/user/register "
+  const handleGoogleCredential = useCallback(async (response) => {
+    if (!response?.credential) {
+      toast.error('Google did not return a sign-in credential. Please try again.')
+      return
+    }
+
+    setSubmitting(true)
+    setAuthError('')
     try {
-      const { data } = await axios.post(url, { name, email, password })
+      const { data } = await axios.post('/api/user/google', { credential: response.credential })
       if (data.success) {
-        setToken(data.token)
         localStorage.setItem('token', data.token)
+        setToken(data.token)
       } else {
-        toast.error(data.message)
+        toast.error(data.message || 'Could not sign in with Google.')
       }
     } catch (error) {
-      toast.error(error.message)
-
+      toast.error(error.response?.data?.message || error.message)
+    } finally {
+      setSubmitting(false)
     }
-  }
+  }, [axios, setToken])
+
+  useEffect(() => {
+    if (!clientId) {
+      setAuthError('Google sign-in is not configured. Add VITE_GOOGLE_CLIENT_ID to the client environment.')
+      return undefined
+    }
+
+    let cancelled = false
+    const renderGoogleButton = () => {
+      if (cancelled || !window.google?.accounts?.id || !buttonContainerRef.current) return
+
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleCredential,
+        auto_select: false,
+      })
+      window.google.accounts.id.renderButton(buttonContainerRef.current, {
+        theme: 'filled_black',
+        size: 'large',
+        shape: 'rectangular',
+        text: 'continue_with',
+        width: Math.min(352, buttonContainerRef.current.clientWidth || 320),
+      })
+    }
+
+    if (window.google?.accounts?.id) {
+      renderGoogleButton()
+      return () => {
+        cancelled = true
+      }
+    }
+
+    let script = document.querySelector('script[data-google-identity]')
+    const onLoad = () => {
+      script.dataset.loaded = 'true'
+      renderGoogleButton()
+    }
+    const onError = () => {
+      if (!cancelled) setAuthError('Could not load Google Sign-In. Check your connection and try again.')
+    }
+
+    if (!script) {
+      script = document.createElement('script')
+      script.src = 'https://accounts.google.com/gsi/client'
+      script.async = true
+      script.defer = true
+      script.dataset.googleIdentity = 'true'
+      script.addEventListener('load', onLoad)
+      script.addEventListener('error', onError)
+      document.head.appendChild(script)
+    } else if (script.dataset.loaded === 'true') {
+      renderGoogleButton()
+    } else {
+      script.addEventListener('load', onLoad)
+      script.addEventListener('error', onError)
+    }
+
+    return () => {
+      cancelled = true
+      script.removeEventListener('load', onLoad)
+      script.removeEventListener('error', onError)
+    }
+  }, [clientId, handleGoogleCredential])
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 m-auto items-start p-8 py-12 w-80 sm:w-[352px] text-gray-500 rounded-lg shadow-xl border border-gray-200 bg-white">
-      <p className="text-2xl font-medium m-auto">
-        <span className="text-purple-700">User</span> {state === "login" ? "Login" : "Sign Up"}
-      </p>
-      {state === "register" && (
-        <div className="w-full">
-          <p>Name</p>
-          <input onChange={(e) => setName(e.target.value)} value={name} placeholder="type here" className="border border-gray-200 rounded w-full p-2 mt-1 outline-purple-700" type="text" required />
+    <main className="login-page">
+      <section className="login-showcase">
+        <div className="login-brand">
+          <div className="login-brand-mark" aria-hidden="true">✦</div>
+          <div>
+            <strong>QuickGPT</strong>
+            <span>Your ideas, in motion</span>
+          </div>
         </div>
-      )}
-      <div className="w-full ">
-        <p>Email</p>
-        <input onChange={(e) => setEmail(e.target.value)} value={email} placeholder="type here" className="border border-gray-200 rounded w-full p-2 mt-1 outline-purple-700" type="email" required />
-      </div>
-      <div className="w-full ">
-        <p>Password</p>
-        <input onChange={(e) => setPassword(e.target.value)} value={password} placeholder="type here" className="border border-gray-200 rounded w-full p-2 mt-1 outline-purple-700" type="password" required />
-      </div>
-      {state === "register" ? (
-        <p>
-          Already have account? <span onClick={() => setState("login")} className="text-purple-700 cursor-pointer">click here</span>
-        </p>
-      ) : (
-        <p>
-          Create an account? <span onClick={() => setState("register")} className="text-purple-700 cursor-pointer">click here</span>
-        </p>
-      )}
-      <button type='submit' className="bg-purple-700 hover:bg-indigo-800 transition-all text-white w-full py-2 rounded-md cursor-pointer">
-        {state === "register" ? "Create Account" : "Login"}
-      </button>
-    </form>
+
+        <div className="login-hero">
+          <span className="page-eyebrow">A little more done, every day</span>
+          <h1>Make room for <span>better ideas.</span></h1>
+          <p>
+            Chat, create, and explore with an AI assistant designed to help you move from
+            a first thought to your next great thing.
+          </p>
+          <div className="login-feature-list" aria-label="QuickGPT features">
+            <span>Thoughtful answers</span>
+            <span>Creative image tools</span>
+            <span>Your ideas, all in one place</span>
+          </div>
+        </div>
+
+        <div className="login-footer">Simple tools for curious minds.</div>
+      </section>
+
+      <section className="login-form-wrap">
+        <div className="login-card">
+          <span className="page-eyebrow">Secure access</span>
+          <h2>Sign in with Google</h2>
+          <p className="login-card-intro">
+            Use a Google account with a verified email address to continue to QuickGPT.
+          </p>
+
+          <div
+            ref={buttonContainerRef}
+            className={`google-login-button ${submitting ? 'google-login-button-busy' : ''}`}
+            aria-label="Continue with Google"
+          />
+          {submitting && <p className="login-auth-status">Verifying your Google account...</p>}
+          {authError && <p className="login-auth-error" role="alert">{authError}</p>}
+          <p className="login-auth-note">
+            New users are added after Google verifies their account. Existing accounts with the same verified email are linked automatically.
+          </p>
+        </div>
+      </section>
+    </main>
   )
 }
 

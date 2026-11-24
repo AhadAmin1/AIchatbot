@@ -1,16 +1,16 @@
-import React, { useEffect, useState } from 'react'
-import { dummyPlans } from '../assets/assets'
+import { useCallback, useEffect, useState } from 'react'
 import Loading from './Loading'
 import { useAppcontext } from '../context/AppContext'
+import { assets } from '../assets/assets'
 import toast from 'react-hot-toast'
 
 const Credits = () => {
-
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
-  const { token, axios } = useAppcontext()
+  const [purchasingPlan, setPurchasingPlan] = useState(null)
+  const { token, axios, user } = useAppcontext()
 
-  const fetchPlans = async () => {
+  const fetchPlans = useCallback(async () => {
     try {
       const { data } = await axios.get('/api/credit/plan', { headers: { Authorization: token } })
       if (data.success) {
@@ -19,57 +19,98 @@ const Credits = () => {
         toast.error(data.message || 'Failed to load plans.')
       }
     } catch (error) {
-      toast.error(error.message)
+      toast.error(error.response?.data?.message || error.message)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
+  }, [axios, token])
 
   const purchasePlan = async (planId) => {
+    setPurchasingPlan(planId)
     try {
-      const { data } = await axios.post('/api/credit/purchase', { planId }, { headers: { Authorization: token } })
+      const { data } = await axios.post(
+        '/api/credit/purchase',
+        { planId },
+        { headers: { Authorization: token } },
+      )
       if (data.success) {
         window.location.href = data.url
       } else {
-        toast.error(data.message)
+        toast.error(data.message || 'Could not start checkout.')
       }
     } catch (error) {
-      toast.error(error.message)
+      toast.error(error.response?.data?.message || error.message)
+    } finally {
+      setPurchasingPlan(null)
     }
   }
 
   useEffect(() => {
     fetchPlans()
-  }, [])
+  }, [fetchPlans])
 
-  if (loading) return <Loading />
+  if (loading) return <Loading message="Loading credit plans..." />
 
   return (
-    <div className='max-w-7xl h-screen overflow-y-scroll mx-auto px-4 sm:px-6 lg:px-8 py-12 '>
-      <h2 className='text-3xl font-semibold text-center mb-10 xl:mt-30 text-gray-800 dark:text-white'>Credits Plans</h2>
+    <main className="page-shell">
+      <header className="page-heading">
+        <div>
+          <span className="page-eyebrow">Credits and plans</span>
+          <h1>Keep your ideas flowing.</h1>
+          <p>Choose a credit pack for chats and image generation. Your balance updates after payment is confirmed.</p>
+        </div>
+        <div className="balance-card">
+          <div className="balance-icon">
+            <img src={assets.diamond_icon} alt="" />
+          </div>
+          <div>
+            <span>Available credits</span>
+            <strong>{user?.credits ?? 0}</strong>
+          </div>
+        </div>
+      </header>
 
-      <div className='flex flex-wrap justify-center gap-8'>
-        {
-          plans.map((plan) => (
-            <div key={plan._id} className={`border border-gray-200 dark:border-purple-700 rounded-lg shadow hover:shadow-lg transition-shadow p-6 min-w-[300px] flex flex-col ${plan._id === "pro" ? "bg-purple-50 dark:bg-purple-900" : "bg-white dark:bg-transparent"}`}>
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  {plan.name}
-                </h3>
-                <p className='text-2xl font-bold text-purple-600 dark:text-purple-300 mb-4'>${plan.price}
-                  <span className='text-base font-normal text-gray-600 dark:text-purple-200'>{' '}/ {plan.credits} Credits</span>
+      {plans.length > 0 ? (
+        <section className="plan-grid" aria-label="Available credit plans">
+          {plans.map((plan) => {
+            const featured = plan._id === 'pro'
+            return (
+              <article key={plan._id} className={`plan-card ${featured ? 'plan-card-featured' : ''}`}>
+                {featured && <span className="plan-badge">Most popular</span>}
+                <h2 className="plan-name">{plan.name}</h2>
+                <p className="plan-description">
+                  {featured ? 'A little more room for your best work.' : 'A flexible boost for your next ideas.'}
                 </p>
-                <ul className='list-disc list-inside text-sm text-gray-700 dark:text-purple-200 space-y-1'>
-                  {plan.features.map((feature, index) => (
-                    <li key={index}>{feature}</li>
+                <div className="plan-price">
+                  <strong>${plan.price}</strong>
+                  <span>USD</span>
+                </div>
+                <div className="plan-credit-summary">{plan.credits} credits included</div>
+                <ul className="plan-features">
+                  {(plan.features || []).map((feature, index) => (
+                    <li key={`${plan._id}-${index}`}>{feature}</li>
                   ))}
                 </ul>
-              </div>
-              <button onClick={() => toast.promise(purchasePlan(plan._id), {loading: 'processing....'})} className='mt-6 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-medium py-2 rounded transition-colors cursor-pointer'>Buy Now</button>
-            </div>
-          ))
-        }
-      </div>
-    </div>
+                <button
+                  type="button"
+                  className="plan-buy"
+                  disabled={purchasingPlan !== null}
+                  onClick={() => purchasePlan(plan._id)}
+                >
+                  {purchasingPlan === plan._id ? 'Opening secure checkout...' : 'Choose this plan'}
+                </button>
+              </article>
+            )
+          })}
+        </section>
+      ) : (
+        <div className="page-empty">
+          <span className="page-empty-mark" aria-hidden="true">◇</span>
+          <h2>No plans available right now</h2>
+          <p>Please check back in a little while.</p>
+        </div>
+      )}
+    </main>
   )
 }
 

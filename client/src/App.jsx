@@ -12,33 +12,53 @@ import Login from './pages/Login.jsx'
 import { Toaster } from 'react-hot-toast'
 
 const App = () => {
-
   const { user, loadingUser } = useAppcontext()
-
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { pathname } = useLocation()
 
-  if (pathname === '/loading' || loadingUser) return <Loading />
-
   return (
     <>
-      <Toaster />
-      {!isMenuOpen && <img src={assets.menu_icon} className='absolute top-3 left-3 w-8 h-8 cursor-pointer md:hidden not-dark:invert' onClick={() => setIsMenuOpen(true)} />}
-      {user ? (
-        <div className="dark:bg-gradient-to-b from-[#242124] to-[#000000] dark:text-white">
-          <div className='flex h-screen w-screen'>
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          style: {
+            color: 'var(--text)',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+          },
+        }}
+      />
+      {pathname === '/loading' || loadingUser ? <Loading /> : user ? (
+        <div className="app-shell">
+          <div className="app-layout">
             <Sidebar isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} />
-            <Routes>
-              <Route path="/" element={<ChatBox />} />
-              <Route path="/credits" element={<Credits />} />
-              <Route path="/community" element={<Community />} />
-            </Routes>
+            {isMenuOpen && (
+              <button
+                type="button"
+                className="sidebar-backdrop"
+                aria-label="Close navigation menu"
+                onClick={() => setIsMenuOpen(false)}
+              />
+            )}
+            <main className="app-main">
+              <button
+                type="button"
+                className="mobile-menu"
+                aria-label="Open navigation menu"
+                onClick={() => setIsMenuOpen(true)}
+              >
+                <img src={assets.menu_icon} alt="" />
+              </button>
+              <Routes>
+                <Route path="/" element={<ChatBox />} />
+                <Route path="/credits" element={<Credits />} />
+                <Route path="/community" element={<Community />} />
+              </Routes>
+            </main>
           </div>
         </div>
       ) : (
-        <div className='bg-gradient-to-b from-[#242124] to-[#000000] h-screen w-screen flex items-center justify-center'>
-          <Login />
-        </div>
+        <Login />
       )}
     </>
   )
