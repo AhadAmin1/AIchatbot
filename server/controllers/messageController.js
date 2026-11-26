@@ -2,6 +2,8 @@ import axios from "axios"
 import Chat from "../modals/Chat.js"
 import User from "../modals/User.js"
 import imagekit from "../config/imageKit.js"
+import { isPaymentsEnabled } from "../config/payments.js"
+import { containsUnexecutedToolCall } from "../utils/assistantResponse.js"
 
 
 // Text-based AI Chat Message Controller
@@ -9,9 +11,9 @@ import imagekit from "../config/imageKit.js"
 export const textMessageController = async (req, res) => {
     try {
         const userId = req.user._id
+        const paymentsEnabled = isPaymentsEnabled()
 
-        // Check Credits
-        if (req.user.credits < 1) {
+        if (paymentsEnabled && req.user.credits < 1) {
             return res.json({ success: false, message: "You don't have enough credits to use this feature" })
         }
 
@@ -25,6 +27,7 @@ export const textMessageController = async (req, res) => {
 
         const conversationMessages = chat.messages
             .filter(message => !message.isImage && ['user', 'assistant'].includes(message.role))
+            .filter(message => !(message.role === 'assistant' && containsUnexecutedToolCall(message.content)))
             .slice(-20)
             .map(({ role, content }) => ({ role, content }))
         const shouldUseWebSearch = /\b(?:search|browse|look up|find online|latest|current|today|news|weather|forecast|price|rate|stock|score)\b|(?:web par|internet par|aaj ki khabar|aaj ka rate|mausam|taaza khabar)/i.test(prompt)
@@ -43,7 +46,7 @@ export const textMessageController = async (req, res) => {
                 messages: [
                     {
                         role: 'system',
-                        content: `Today is ${new Date().toISOString().slice(0, 10)}. You are QuickGPT, a helpful conversational assistant. Reply naturally and directly in the user's language. Keep greetings and small talk brief; don't define them or search for them unless asked. Use the conversation history. For normal conversation, do not add links or source lists. For current or time-sensitive facts, use web search when available and cite its results.`,
+                        content: `Today is ${new Date().toISOString().slice(0, 10)}. You are QuickGPT, a helpful conversational assistant. Reply naturally and directly in the user's language. Keep greetings and small talk brief; don't define them or search for them unless asked. Use the conversation history. For normal conversation, do not add links or source lists. For current or time-sensitive facts, use web search when available and cite its results. Never expose raw tool-call markup; use search results to produce a natural-language answer.`,
                     },
                     ...conversationMessages,
                 ],
@@ -63,6 +66,12 @@ export const textMessageController = async (req, res) => {
         const answer = typeof assistantMessage?.content === 'string' ? assistantMessage.content.trim() : ''
         if (!answer) {
             throw new Error('OpenRouter returned no text output.')
+        }
+        if (containsUnexecutedToolCall(answer)) {
+            return res.status(502).json({
+                success: false,
+                message: 'The AI returned an incomplete search request instead of an answer. Please try again.',
+            })
         }
 
         const citations = shouldUseWebSearch
@@ -87,7 +96,9 @@ export const textMessageController = async (req, res) => {
         chat.messages.push(reply)
         await chat.save()
 
-        await User.updateOne({ _id: userId }, { $inc: { credits: -1 } })
+        if (paymentsEnabled) {
+            await User.updateOne({ _id: userId }, { $inc: { credits: -1 } })
+        }
 
         res.json({ success: true, reply })
 
@@ -111,9 +122,9 @@ export const textMessageController = async (req, res) => {
 export const imageMessageController = async (req, res) => {
     try {
         const userId = req.user._id;
+        const paymentsEnabled = isPaymentsEnabled()
 
-        // Check Credits
-        if (req.user.credits < 2) {
+        if (paymentsEnabled && req.user.credits < 2) {
             return res.json({ success: false, message: "You don't have enough credits to use this feature" })
         }
         const { prompt, chatId, isPublished } = req.body;
@@ -164,7 +175,9 @@ export const imageMessageController = async (req, res) => {
         chat.messages.push(reply)
         await chat.save()
 
-        await User.updateOne({ _id: userId }, { $inc: { credits: -2 } })
+        if (paymentsEnabled) {
+            await User.updateOne({ _id: userId }, { $inc: { credits: -2 } })
+        }
 
         res.json({ success: true, reply })
 

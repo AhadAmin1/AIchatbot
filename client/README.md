@@ -11,6 +11,10 @@ Use the same Client ID in both environment files:
 
 Restart the client and server after changing environment variables. Keep the server value private to the backend; the `VITE_` value is public and is used only to render Google's sign-in button. If the OAuth consent screen is in testing mode, add the Google accounts that should be allowed to sign in as test users.
 
+## Payments
+
+Credit purchases are disabled by default. With `PAYMENTS_ENABLED=false`, chats and image generation are unlimited, saved credit balances are not decremented, the credits page shows “Payments coming soon,” and the API rejects checkout requests. Set `PAYMENTS_ENABLED=true` only when the matching Safepay environment and credentials are configured; normal credit checks and deductions then resume.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

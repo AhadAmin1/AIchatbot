@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 const Credits = () => {
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
+  const [paymentsEnabled, setPaymentsEnabled] = useState(false)
   const [purchasingPlan, setPurchasingPlan] = useState(null)
   const { token, axios, user } = useAppcontext()
 
@@ -15,6 +16,7 @@ const Credits = () => {
       const { data } = await axios.get('/api/credit/plan', { headers: { Authorization: token } })
       if (data.success) {
         setPlans(data.plans)
+        setPaymentsEnabled(data.paymentsEnabled === true)
       } else {
         toast.error(data.message || 'Failed to load plans.')
       }
@@ -57,7 +59,11 @@ const Credits = () => {
         <div>
           <span className="page-eyebrow">Credits and plans</span>
           <h1>Keep your ideas flowing.</h1>
-          <p>Choose a credit pack for chats and image generation. Your balance updates after payment is confirmed.</p>
+          <p>
+            {user?.unlimitedCredits
+              ? 'Enjoy unlimited chats and image generation while payments are unavailable.'
+              : 'Choose a credit pack for chats and image generation. Your balance updates after payment is confirmed.'}
+          </p>
         </div>
         <div className="balance-card">
           <div className="balance-icon">
@@ -65,10 +71,20 @@ const Credits = () => {
           </div>
           <div>
             <span>Available credits</span>
-            <strong>{user?.credits ?? 0}</strong>
+            <strong>{user?.unlimitedCredits ? 'Unlimited' : user?.credits ?? 0}</strong>
           </div>
         </div>
       </header>
+
+      {!paymentsEnabled && (
+        <div className="payment-coming-soon" role="status">
+          <span className="payment-coming-soon-icon" aria-hidden="true">◇</span>
+          <div>
+            <strong>Payments coming soon</strong>
+            <p>Credit purchases will be available once payment processing is ready.</p>
+          </div>
+        </div>
+      )}
 
       {plans.length > 0 ? (
         <section className="plan-grid" aria-label="Available credit plans">
@@ -94,10 +110,14 @@ const Credits = () => {
                 <button
                   type="button"
                   className="plan-buy"
-                  disabled={purchasingPlan !== null}
+                  disabled={!paymentsEnabled || purchasingPlan !== null}
                   onClick={() => purchasePlan(plan._id)}
                 >
-                  {purchasingPlan === plan._id ? 'Opening secure checkout...' : 'Choose this plan'}
+                  {purchasingPlan === plan._id
+                    ? 'Opening secure checkout...'
+                    : paymentsEnabled
+                      ? 'Choose this plan'
+                      : 'Payments coming soon'}
                 </button>
               </article>
             )

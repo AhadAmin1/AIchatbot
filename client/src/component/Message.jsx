@@ -4,8 +4,12 @@ import Markdown from 'react-markdown'
 import prism from 'prismjs'
 import { assets } from '../assets/assets'
 
+const containsUnexecutedToolCall = (content) =>
+  /<tool_call\b[^>]*>[\s\S]*?<\/tool_call>|<function=[^>]+>[\s\S]*?<parameter=[^>]+>/i.test(content || '')
+
 const Message = ({ message }) => {
   const isUser = message.role === 'user'
+  const isIncompleteResponse = !isUser && containsUnexecutedToolCall(message.content)
   const timestamp = message.timestamp ? moment(message.timestamp).fromNow() : ''
 
   useEffect(() => {
@@ -27,7 +31,9 @@ const Message = ({ message }) => {
             message.content
           ) : (
             <div className="message-markdown">
-              <Markdown>{message.content || ''}</Markdown>
+              <Markdown>
+                {isIncompleteResponse ? 'This response was incomplete. Please ask again.' : message.content || ''}
+              </Markdown>
             </div>
           )}
         </div>

@@ -1015,6 +1015,43 @@ select:focus-visible {
     font-weight: 700;
 }
 
+.payment-coming-soon {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin: -10px 0 25px;
+    padding: 14px 17px;
+    border: 1px solid rgba(139, 92, 246, 0.26);
+    border-radius: 15px;
+    color: var(--text);
+    background: var(--accent-soft);
+}
+
+.payment-coming-soon-icon {
+    display: grid;
+    width: 37px;
+    height: 37px;
+    flex: 0 0 37px;
+    place-items: center;
+    border-radius: 12px;
+    color: var(--accent-strong);
+    background: var(--surface);
+    font-size: 19px;
+}
+
+.payment-coming-soon strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.payment-coming-soon p {
+    margin: 3px 0 0;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
 .plan-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

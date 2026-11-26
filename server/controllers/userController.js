@@ -2,6 +2,7 @@ import User from "../modals/User.js";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import Chat from "../modals/Chat.js";
+import { isPaymentsEnabled } from "../config/payments.js";
 
 const googleOAuthClient = new OAuth2Client();
 
@@ -75,7 +76,7 @@ export const loginWithGoogle = async (req, res) => {
 export const getUser = async (req, res) => {
     try {
         const { _id, name, email, credits } = req.user;
-        const user = { _id, name, email, credits };
+        const user = { _id, name, email, credits, unlimitedCredits: !isPaymentsEnabled() };
         return res.json({ success: true, user })
 
     } catch (err) {

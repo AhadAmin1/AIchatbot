@@ -1,5 +1,6 @@
 import Transaction from "../modals/Transaction.js"
 import Safepay from "@sfpy/node-core"
+import { isPaymentsEnabled } from "../config/payments.js"
 
 const plans = [
     {
@@ -30,7 +31,7 @@ const plans = [
 export const getPlans = async (req, res) => {
 
     try {
-        res.json({ success: true, plans })
+        res.json({ success: true, plans, paymentsEnabled: isPaymentsEnabled() })
     } catch (err) {
         res.json({ success: false, message: err.message })
     }
@@ -40,6 +41,13 @@ export const getPlans = async (req, res) => {
 // API Controller for purchasing a new plan
 export const purchasePlan = async (req, res) => {
     try {
+        if (!isPaymentsEnabled()) {
+            return res.status(503).json({
+                success: false,
+                message: 'Payments are coming soon. Please check back later.',
+            })
+        }
+
         const { planId } = req.body
         const userId = req.user._id
         const plan = plans.find(plan => plan._id === planId)

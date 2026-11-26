@@ -44,10 +44,12 @@ const ChatBox = () => {
 
       if (data.success) {
         setMessages((previousMessages) => [...previousMessages, data.reply])
-        setUser((previousUser) => ({
-          ...previousUser,
-          credits: previousUser.credits - (mode === 'image' ? 2 : 1),
-        }))
+        if (!user.unlimitedCredits) {
+          setUser((previousUser) => ({
+            ...previousUser,
+            credits: previousUser.credits - (mode === 'image' ? 2 : 1),
+          }))
+        }
       } else {
         toast.error(data.message)
         setPrompt(promptText)
@@ -83,8 +85,8 @@ const ChatBox = () => {
         <div className="chat-header-right">
           <div className="chat-credit-pill">
             <img src={assets.diamond_icon} alt="" />
-            <strong>{user?.credits ?? 0}</strong>
-            <span>credits available</span>
+            <strong>{user?.unlimitedCredits ? 'Unlimited' : user?.credits ?? 0}</strong>
+            <span>{user?.unlimitedCredits ? 'usage' : 'credits available'}</span>
           </div>
         </div>
       </header>

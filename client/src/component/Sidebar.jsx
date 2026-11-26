@@ -164,7 +164,12 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 >
                     <img src={assets.diamond_icon} alt="" />
                     <span className="sidebar-action-label">Credits</span>
-                    <span className="sidebar-credit-count">{user?.credits ?? 0}</span>
+                    <span
+                        className="sidebar-credit-count"
+                        aria-label={user?.unlimitedCredits ? 'Unlimited credits' : `${user?.credits ?? 0} credits`}
+                    >
+                        {user?.unlimitedCredits ? '∞' : user?.credits ?? 0}
+                    </span>
                 </button>
                 <div className="sidebar-theme">
                     <span className="sidebar-theme-label">
